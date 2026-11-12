@@ -66,7 +66,7 @@
             </div>
             @endif
 
-            <form action="{{ route('login.store') }}" method="POST">
+            <form method="POST" action="{{ route('login.store', [], false) }}">
                 @csrf
 
                 <div class="field">
