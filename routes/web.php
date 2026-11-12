@@ -10,6 +10,8 @@ use App\Http\Controllers\PageController;
 use App\Http\Controllers\TaskController;
 use App\Http\Middleware\EnsureAdministrator;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\MembershipApplicationController;
+use App\Http\Controllers\WeatherController;
 
 Route::get('/', function () {
     return redirect()->route('dashboard');
@@ -39,6 +41,22 @@ Route::middleware('guest')->group(function () {
 Route::post('/logout', [AuthController::class, 'logout'])
     ->middleware('auth')
     ->name('logout');
+
+Route::get('/membership/apply', [
+    MembershipApplicationController::class,
+    'create',
+])->name('membership.create');
+
+Route::post('/membership/apply', [
+    MembershipApplicationController::class,
+    'store',
+])
+    ->middleware('throttle:5,1')
+    ->name('membership.store');
+
+Route::get('/weather', [WeatherController::class, 'show'])
+    ->middleware('throttle:30,1')
+    ->name('weather.show');
 
 // Membership management requires an administrator account.
 Route::middleware(['auth', EnsureAdministrator::class])
@@ -110,7 +128,22 @@ Route::middleware(['auth', EnsureAdministrator::class])
         )->name('payments.receipt');
 
         Route::get(
-            '/members/{member}/print', 
+            '/members/{member}/print',
             [MemberController::class, 'printRecord']
         )->name('members.print');
+
+        Route::get('/applications', [
+            MembershipApplicationController::class,
+            'index',
+        ])->name('applications.index');
+
+        Route::get('/applications/{application}', [
+            MembershipApplicationController::class,
+            'show',
+        ])->name('applications.show');
+
+        Route::post(
+            '/applications/{application}/process',
+            [MembershipApplicationController::class, 'process']
+        )->name('applications.process');
     });

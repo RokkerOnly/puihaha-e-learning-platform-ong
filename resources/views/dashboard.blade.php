@@ -5,6 +5,13 @@
 @section('panel-class', 'dashboard-panel')
 
 @section('content')
+<div class="toolbar">
+    <h2 class="section-title">Membership applications</h2>
+
+    <a href="{{ route('applications.index') }}" class="btn">
+        Review applications
+    </a>
+</div>
 <section class="dashboard-finances" aria-label="Transactions and payments">
     <a href="{{ route('transactions.index', ['status' => 'pending']) }}" class="dashboard-finance-item">
         <span class="dashboard-finance-label">Pending transactions</span>

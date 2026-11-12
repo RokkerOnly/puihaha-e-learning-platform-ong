@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use App\Notifications\MembershipTransactionSubmitted;
+use Illuminate\Support\Facades\Notification;
 
 class TransactionController extends Controller
 {
@@ -165,7 +167,7 @@ class TransactionController extends Controller
                 ]);
             }
 
-            return MembershipTransaction::create([
+            $newTransaction = MembershipTransaction::create([
                 'reference_no' => 'TXN-' . Str::uuid(),
                 'member_id' => $member->id,
                 'level_id' => $level->id,
@@ -178,6 +180,19 @@ class TransactionController extends Controller
                 'status' => MembershipTransaction::STATUS_PENDING,
                 'created_by' => $request->user()->id,
             ]);
+
+            Notification::route('mail', $member->email)
+                ->notify(new MembershipTransactionSubmitted(
+                    memberName: trim(
+                        $member->first_name . ' ' . $member->last_name
+                    ),
+                    referenceNo: $newTransaction->reference_no,
+                    transactionType: $newTransaction->type,
+                    levelName: $newTransaction->level_name,
+                    amountDue: (string) $newTransaction->amount_due,
+                ));
+
+            return $newTransaction;
         }, 3);
 
         return redirect()
@@ -247,138 +262,138 @@ class TransactionController extends Controller
     }
 
     public function approve(
-    Request $request,
-    MembershipTransaction $transaction
+        Request $request,
+        MembershipTransaction $transaction
     ) {
-    DB::transaction(function () use ($request, $transaction) {
-        // Lock the member first, matching transaction creation.
-        $member = Member::lockForUpdate()
-            ->findOrFail($transaction->member_id);
+        DB::transaction(function () use ($request, $transaction) {
+            // Lock the member first, matching transaction creation.
+            $member = Member::lockForUpdate()
+                ->findOrFail($transaction->member_id);
 
-        $lockedTransaction = MembershipTransaction::lockForUpdate()
-            ->findOrFail($transaction->id);
+            $lockedTransaction = MembershipTransaction::lockForUpdate()
+                ->findOrFail($transaction->id);
 
-        if ($lockedTransaction->approved_at !== null) {
-            throw ValidationException::withMessages([
-                'approval' => 'This transaction has already been approved.',
-            ]);
-        }
+            if ($lockedTransaction->approved_at !== null) {
+                throw ValidationException::withMessages([
+                    'approval' => 'This transaction has already been approved.',
+                ]);
+            }
 
-        if (! in_array($lockedTransaction->status, [
-            MembershipTransaction::STATUS_PENDING,
-            MembershipTransaction::STATUS_PAID,
-        ], true)) {
-            throw ValidationException::withMessages([
-                'approval' => 'This transaction cannot be approved in its current status.',
-            ]);
-        }
+            if (! in_array($lockedTransaction->status, [
+                MembershipTransaction::STATUS_PENDING,
+                MembershipTransaction::STATUS_PAID,
+            ], true)) {
+                throw ValidationException::withMessages([
+                    'approval' => 'This transaction cannot be approved in its current status.',
+                ]);
+            }
 
-        $amountDue = Money::toCents(
-            (string) $lockedTransaction->amount_due
-        );
+            $amountDue = Money::toCents(
+                (string) $lockedTransaction->amount_due
+            );
 
-        $amountPaid = Money::toCents(
-            (string) $lockedTransaction->payments()->sum('amount')
-        );
+            $amountPaid = Money::toCents(
+                (string) $lockedTransaction->payments()->sum('amount')
+            );
 
-        if ($amountPaid !== $amountDue) {
-            throw ValidationException::withMessages([
-                'approval' => 'Recorded payments must exactly cover the amount due before approval.',
-            ]);
-        }
+            if ($amountPaid !== $amountDue) {
+                throw ValidationException::withMessages([
+                    'approval' => 'Recorded payments must exactly cover the amount due before approval.',
+                ]);
+            }
 
-        // A zero-fee transaction has a settled balance without a payment.
-        if (
-            $amountDue === 0
-            && $lockedTransaction->status
+            // A zero-fee transaction has a settled balance without a payment.
+            if (
+                $amountDue === 0
+                && $lockedTransaction->status
                 === MembershipTransaction::STATUS_PENDING
-        ) {
-            $lockedTransaction->status =
-                MembershipTransaction::STATUS_PAID;
+            ) {
+                $lockedTransaction->status =
+                    MembershipTransaction::STATUS_PAID;
 
-            $lockedTransaction->save();
-        }
+                $lockedTransaction->save();
+            }
 
-        if (
-            $lockedTransaction->status
-            !== MembershipTransaction::STATUS_PAID
-        ) {
-            throw ValidationException::withMessages([
-                'approval' => 'Only paid transactions can be approved.',
-            ]);
-        }
+            if (
+                $lockedTransaction->status
+                !== MembershipTransaction::STATUS_PAID
+            ) {
+                throw ValidationException::withMessages([
+                    'approval' => 'Only paid transactions can be approved.',
+                ]);
+            }
 
-        if ($lockedTransaction->validity_months < 1) {
-            throw ValidationException::withMessages([
-                'approval' => 'The transaction has an invalid validity period.',
-            ]);
-        }
+            if ($lockedTransaction->validity_months < 1) {
+                throw ValidationException::withMessages([
+                    'approval' => 'The transaction has an invalid validity period.',
+                ]);
+            }
 
-        $hasApprovedMembership = $member->transactions()
-            ->where('id', '!=', $lockedTransaction->id)
-            ->whereNotNull('approved_at')
-            ->exists();
+            $hasApprovedMembership = $member->transactions()
+                ->where('id', '!=', $lockedTransaction->id)
+                ->whereNotNull('approved_at')
+                ->exists();
 
-        $isRenewal = $lockedTransaction->type
-            === MembershipTransaction::TYPE_RENEWAL;
+            $isRenewal = $lockedTransaction->type
+                === MembershipTransaction::TYPE_RENEWAL;
 
-        if ($isRenewal && ! $hasApprovedMembership) {
-            throw ValidationException::withMessages([
-                'approval' => 'A renewal requires a previously approved membership.',
-            ]);
-        }
+            if ($isRenewal && ! $hasApprovedMembership) {
+                throw ValidationException::withMessages([
+                    'approval' => 'A renewal requires a previously approved membership.',
+                ]);
+            }
 
-        if (! $isRenewal && $hasApprovedMembership) {
-            throw ValidationException::withMessages([
-                'approval' => 'This member already has an approved membership. Use a renewal.',
-            ]);
-        }
+            if (! $isRenewal && $hasApprovedMembership) {
+                throw ValidationException::withMessages([
+                    'approval' => 'This member already has an approved membership. Use a renewal.',
+                ]);
+            }
 
-        if ($isRenewal && ! $member->membership_expires_at) {
-            throw ValidationException::withMessages([
-                'approval' => 'The previous membership expiry date is missing.',
-            ]);
-        }
+            if ($isRenewal && ! $member->membership_expires_at) {
+                throw ValidationException::withMessages([
+                    'approval' => 'The previous membership expiry date is missing.',
+                ]);
+            }
 
-        $approvedAt = now();
+            $approvedAt = now();
 
-        $hasRemainingTime = $isRenewal
-            && $member->membership_expires_at->gt($approvedAt);
+            $hasRemainingTime = $isRenewal
+                && $member->membership_expires_at->gt($approvedAt);
 
-        // Calculate calendar months using Philippine local time.
-        $expiryBase = $hasRemainingTime
-            ? $member->membership_expires_at
+            // Calculate calendar months using Philippine local time.
+            $expiryBase = $hasRemainingTime
+                ? $member->membership_expires_at
                 ->copy()
                 ->timezone('Asia/Manila')
-            : $approvedAt->copy()->timezone('Asia/Manila');
+                : $approvedAt->copy()->timezone('Asia/Manila');
 
-        $expiresAt = $expiryBase
-            ->copy()
-            ->addMonthsNoOverflow($lockedTransaction->validity_months)
-            ->timezone(config('app.timezone', 'UTC'));
+            $expiresAt = $expiryBase
+                ->copy()
+                ->addMonthsNoOverflow($lockedTransaction->validity_months)
+                ->timezone(config('app.timezone', 'UTC'));
 
-        $lockedTransaction->status =
-            MembershipTransaction::STATUS_APPROVED;
+            $lockedTransaction->status =
+                MembershipTransaction::STATUS_APPROVED;
 
-        $lockedTransaction->approved_by = $request->user()->id;
-        $lockedTransaction->approved_at = $approvedAt;
-        $lockedTransaction->starts_at = $approvedAt;
-        $lockedTransaction->expires_at = $expiresAt;
-        $lockedTransaction->save();
+            $lockedTransaction->approved_by = $request->user()->id;
+            $lockedTransaction->approved_at = $approvedAt;
+            $lockedTransaction->starts_at = $approvedAt;
+            $lockedTransaction->expires_at = $expiresAt;
+            $lockedTransaction->save();
 
-        // Keep the original start date for continuous membership.
-        if (! $hasRemainingTime || ! $member->membership_starts_at) {
-            $member->membership_starts_at = $approvedAt;
-        }
+            // Keep the original start date for continuous membership.
+            if (! $hasRemainingTime || ! $member->membership_starts_at) {
+                $member->membership_starts_at = $approvedAt;
+            }
 
-        $member->membership_expires_at = $expiresAt;
-        $member->level_id = $lockedTransaction->level_id;
-        $member->active = true;
-        $member->save();
-    }, 3);
+            $member->membership_expires_at = $expiresAt;
+            $member->level_id = $lockedTransaction->level_id;
+            $member->active = true;
+            $member->save();
+        }, 3);
 
-    return redirect()
-        ->route('transactions.show', $transaction)
-        ->with('success', 'Membership transaction approved successfully.');
+        return redirect()
+            ->route('transactions.show', $transaction)
+            ->with('success', 'Membership transaction approved successfully.');
     }
 }

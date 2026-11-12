@@ -38,6 +38,13 @@
                     Members
                 </a>
 
+                <a href="{{ route('applications.index') }}"
+                    class="{{ request()->routeIs('applications.*') ? 'selected' : '' }}"
+                    @if(request()->routeIs('applications.*')) aria-current="page" @endif>
+                    <span aria-hidden="true">▤</span>
+                    Applications
+                </a>
+
                 <a href="{{ route('categories.index') }}"
                     class="{{ request()->routeIs('categories.*') ? 'selected' : '' }}"
                     @if(request()->routeIs('categories.*')) aria-current="page" @endif>

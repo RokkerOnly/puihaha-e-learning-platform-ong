@@ -1322,3 +1322,38 @@ td .actions .btn {
         padding: 20px;
     }
 }
+.location-heading {
+    margin: 0 0 8px;
+    color: #4b4b40;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+#application-map {
+    width: 100%;
+    height: 340px;
+    margin-top: 14px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+}
+
+.application-weather {
+    margin-top: 16px;
+    padding: 18px;
+    border-left: 3px solid var(--olive);
+    background: var(--sage);
+}
+
+.application-weather strong {
+    font-size: 13px;
+}
+
+.application-weather p {
+    margin: 8px 0;
+    font-size: 13px;
+}
+
+.application-weather small {
+    color: var(--muted);
+    font-size: 11px;
+}
