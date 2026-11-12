@@ -1357,3 +1357,25 @@ td .actions .btn {
     color: var(--muted);
     font-size: 11px;
 }
+.membership-signup {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #d4d0c5;
+}
+
+.membership-signup p {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: #68685e;
+}
+
+.membership-signup a {
+    color: #a53e29;
+    font-size: 14px;
+    font-weight: bold;
+    text-decoration: none;
+}
+
+.membership-signup a:hover {
+    text-decoration: underline;
+}

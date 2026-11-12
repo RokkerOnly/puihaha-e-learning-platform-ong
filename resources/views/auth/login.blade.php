@@ -88,6 +88,14 @@
                 </button>
             </form>
 
+            <div class="membership-signup">
+                <p>Not a member yet?</p>
+
+                <a href="{{ route('membership.create') }}">
+                    Sign up for membership →
+                </a>
+            </div>
+
             <p class="login-help">
                 Access is limited to authorized administrators.
                 Contact the system administrator if you need an account.
