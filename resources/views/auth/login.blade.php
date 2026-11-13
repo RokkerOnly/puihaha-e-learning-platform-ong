@@ -65,7 +65,6 @@
                 </ul>
             </div>
             @endif
-            //pls gumana kana plspls mag secure login kanaaaaq
             <form method="POST" action="{{ route('login.store', [], false) }}">
                 @csrf
 
